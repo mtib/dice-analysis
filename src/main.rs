@@ -6,7 +6,7 @@ use std::io;
 use num::{Num, NumCast};
 use std::io::Write;
 
-const HELP: &'static str = "Options:
+const HELP: &'static str = r"Options:
 [a]nalyze
 [b]rute
 [c]ompare
@@ -15,23 +15,22 @@ const RUNS: usize = 1_000_000;
 const DICE: usize = 4;
 const SIDES: usize = 6;
 const SELECT: usize = 3;
+const RESULTS_LEN: usize = SIDES * SELECT - SELECT + 1;
 
 fn main() {
+    debug_assert!(SELECT < DICE, "YOU BROKE da rulz! DON'T DO THAT!");
     match env::args().nth(1) {
         Some(s) => {
-            match s.chars().nth(0) {
+            match s.chars().next() {
                 Some('a') => {
                     analyze();
-                    ()
                 }
                 Some('b') => {
                     brute();
-                    ()
                 }
                 Some('c') => compare(),
                 Some('l') => {
                     list_analyze();
-                    ()
                 }
                 _ => println!("unknown option"),
             }
@@ -40,20 +39,21 @@ fn main() {
     };
 }
 
-fn analyze() -> Vec<usize> {
+fn analyze() -> [usize; RESULTS_LEN] {
     println!("analyzing");
     let vkw = SIDES.pow(DICE as u32);
-    let mut prob = vec![0usize;SIDES * SELECT - SELECT + 1];
+    let mut prob = [0; RESULTS_LEN];
     for res in SELECT..SELECT * SIDES + 1 {
-        let mut pos = Vec::<Vec<usize>>::new();
+        // let mut pos = Vec::new();
         // TODO generating all possible vecs for result res
         // They have to be unique
-        {
+        let pos = {
+            let mut pos = Vec::new();
             // this generates the 'basic' / simplest roll
             // the highest possible numbers, then only 1s
             let mut scount = DICE;
-            let mut i = 0usize;
-            let mut startvec = vec![1; DICE];
+            let mut i = 0;
+            let mut startvec = [1; DICE];
             loop {
                 if res >= scount + SIDES - 1 {
                     startvec[i] = SIDES;
@@ -67,10 +67,11 @@ fn analyze() -> Vec<usize> {
                     break;
                 }
             }
-        }
+            pos
+        };
         {
             let mut bases = Vec::<&[usize]>::new();
-            bases.push(pos.get(0).unwrap() as &[usize]);
+            bases.push(&pos[0]);
             let mut active = 0;
             let mut permute = move |base, index| {
                 println!("{:?} {:?}", base, index);
@@ -101,33 +102,33 @@ fn analyze() -> Vec<usize> {
     prob
 }
 
-fn brute() -> Vec<usize> {
+fn brute() -> [usize; RESULTS_LEN] {
     println!("brute forcing it up ({})", RUNS);
-    let mut rolls = Vec::<usize>::new();
-    let perc = RUNS / 100;
-    for i in 1..RUNS + 1 {
-        rolls.push(roll::<usize>(DICE).iter().take(SELECT).fold(0, |sum, x| sum + x));
-        if i % perc == 0 {
+    let mut rolls = Box::new([0; RUNS]);
+    const PERC: usize = RUNS / 100;
+    for (i, a_roll) in (1..).zip(&mut rolls[..]) {
+        *a_roll = roll::<usize>()[..SELECT].into_iter().fold(0, |sum, x| sum + x);
+        if i % PERC == 0 {
             print!("{:>3}% ", i * 100 / RUNS);
-            if i % (perc * 10) == 0 {
+            if i % (PERC * 10) == 0 {
                 print!("\n");
             }
-            io::stdout().flush().unwrap();
+            io::stdout().flush().expect("couldn't toilet");
         }
     }
-    let mut data = vec![0usize; (SIDES * SELECT) - SELECT + 1];
-    for n in rolls {
+    let mut data = [0; RESULTS_LEN];
+    for &n in &rolls[..] {
         // consumes
         data[n] += 1;
     }
     println!("results");
     let mut rn = SELECT;
-    for r in &data {
+    for &r in &data {
         println!("{:>2}: {:>10}/{} = {:>5.2}%",
                  rn,
                  r,
                  RUNS,
-                 *r as f64 / RUNS as f64 * 100f64);
+                 r as f64 / RUNS as f64 * 100_f64);
         rn += 1;
     }
     data
@@ -153,34 +154,34 @@ fn append_possible(mut head: [usize; DICE], index: usize, result: &mut [usize]) 
 fn list_analyze() {
     println!("analyzing list of all possible rolls (cheat)");
     let vkw = SIDES.pow(DICE as u32) as f64;
-    let mut result = [0usize; SIDES * SELECT - SELECT + 1];
+    let mut result = [0usize; RESULTS_LEN];
     let head = [1usize; DICE];
     append_possible(head, 0, &mut result);
-    for x in 0..result.len() {
+    for (x, &r) in result.iter().enumerate() {
         println!("{:>3}: {:>5}/{:.0} = {:>5.2}%",
                  x + SELECT,
-                 result[x],
+                 r,
                  vkw,
-                 result[x] as f64 / vkw * 100f64);
+                 r as f64 / vkw * 100f64);
     }
 }
 
-fn roll<T: rand::Rand + Num + NumCast + Ord + Copy>(len: usize) -> Vec<T> {
-    let mut arr = Vec::<T>::new();
-    let upper: T = NumCast::from(SIDES).unwrap();
-    for _ in 0..len {
-        arr.push(rand::random::<T>() % upper);
+fn roll<T: rand::Rand + Num + NumCast + Ord + Copy + Default>() -> [T; DICE] {
+    let mut arr: [T; DICE] = [Default::default(); DICE];
+    let upper = NumCast::from(SIDES).unwrap();
+    for a in &mut arr[..] {
+        *a = rand::random::<T>() % upper;
     }
     arr.sort_by(|a, b| b.cmp(a));
     arr
 }
 
-fn permutations<T: Ord + Num + NumCast>(arr: Vec<T>) -> usize {
+fn permutations<T: Copy + Ord + Num + NumCast>(arr: [T; DICE]) -> usize {
     let fact = |x| (1..x + 1).fold(1, |a, b| a * b);
     let mut sames = [0; SIDES];
-    for val in arr {
+    for val in arr.into_iter() {
         // consumes
-        let i: usize = NumCast::from(val).unwrap();
+        let i: usize = NumCast::from(*val).expect("couldn't Carsten");
         sames[i - 1] += 1;
     }
     let mut var = fact(DICE);
