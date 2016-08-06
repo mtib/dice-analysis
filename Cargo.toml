@@ -5,3 +5,4 @@ authors = ["Markus Becker <mtb@tibyte.net>"]
 
 [dependencies]
 rand = "0.3"
+num = "0.1.34"
