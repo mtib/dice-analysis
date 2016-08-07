@@ -19,24 +19,23 @@ const RESULTS_LEN: usize = SIDES * SELECT - SELECT + 1;
 
 fn main() {
     debug_assert!(SELECT < DICE, "YOU BROKE da rulz! DON'T DO THAT!");
-    match env::args().nth(1) {
-        Some(s) => {
-            match s.chars().next() {
-                Some('a') => {
-                    analyze();
-                }
-                Some('b') => {
-                    brute();
-                }
-                Some('c') => compare(),
-                Some('l') => {
-                    list_analyze();
-                }
-                _ => println!("unknown option"),
+    if let Some(s) = env::args().nth(1) {
+        match s.chars().next() {
+            Some('a') => {
+                analyze();
             }
+            Some('b') => {
+                brute();
+            }
+            Some('c') => compare(),
+            Some('l') => {
+                list_analyze();
+            }
+            _ => println!("unknown option"),
         }
-        None => println!("{}", HELP),
-    };
+    } else {
+        println!("{}", HELP);
+    }
 }
 
 fn analyze() -> [usize; RESULTS_LEN] {
